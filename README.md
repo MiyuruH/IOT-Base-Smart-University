@@ -27,6 +27,75 @@ Because this project is exceptionally customized for high performance, it utiliz
 | Recharts | Dynamic sensor data visualizations |
 | Deno | Serverless Edge Function IoT Simulator execution |
 
+## 🛠️ Technologies Used
+
+### Frontend
+- **Next.js 16 (App Router)**: React framework for building server-rendered and statically generated applications.
+- **React 19**: Modern UI library for composable components.
+- **Tailwind CSS**: Utility-first CSS framework for rapid UI styling.
+- **Lucide React / Recharts**: Beautiful icons and dynamic data visualizations.
+
+### Backend & Database
+- **Supabase**: Open-source Firebase alternative serving as the Postgres database, Auth provider, and real-time subscription engine.
+- **Next.js API Routes**: Serverless functions acting as the intermediate backend layer.
+- **Deno Edge Functions**: Used natively in Supabase to run serverless micro-scripts (e.g., simulating sensor data inputs).
+
+### Authentication & Security
+- **JWT (JSON Web Tokens)** & **Bcrypt.js**: Custom implementation of stateless tokens and password hashing for user management.
+
+---
+
+## 📂 File Structure
+
+The project relies on a modular separation of concerns following standard Next.js conventions:
+
+```text
+📦 IOT-Base-Smart-University
+ ┣ 📂 public/              # Static assets (images, fonts)
+ ┣ 📂 src/
+ ┃ ┣ 📂 app/               # Next.js App Router (Pages & Layouts)
+ ┃ ┃ ┣ 📂 (dashboard)/     # Main authenticated app interface routes
+ ┃ ┃ ┣ 📂 api/             # Next.js API Routes (Backend layer)
+ ┃ ┃ ┣ 📂 login/           # Authentication page
+ ┃ ┃ ┣ 📜 layout.tsx       # Root layout file
+ ┃ ┃ ┗ 📜 page.tsx         # Landing entry point
+ ┃ ┣ 📂 components/        # Reusable React components (UI elements, charts)
+ ┃ ┣ 📂 hooks/             # Custom React hooks
+ ┃ ┗ 📂 lib/               # Utility functions and services
+ ┃   ┗ 📂 services/        # Supabase DB wrapper logic (users, rooms, sensors)
+ ┣ 📂 supabase/            # Supabase Configurations
+ ┃ ┗ 📂 functions/         # Deno Edge Functions (e.g., IoT data simulator)
+ ┣ 📜 .env.local           # Environment variables (Ignored by Git)
+ ┣ 📜 package.json         # Project dependencies and scripts
+ ┗ 📜 tailwind.config.ts   # Tailwind CSS configuration rules
+```
+
+---
+
+## 🗄️ Database Structure
+
+The project uses a relational **PostgreSQL** database managed by Supabase. Here are the core tables and their purpose:
+
+1. **`users`**: Securely holds administrator/staff credentials and roles.
+2. **`buildings`**: Represents physical campus structures.
+3. **`rooms`**: Specific rooms within the buildings.
+4. **`room_status`**: Live availability or tracking status of a room (e.g., reserved, free).
+5. **`sensor_nodes`**: Physical hardware devices (ESP32/Raspberry Pi) installed in the campus. Acts as the source of live metrics.
+6. **`readings`**: Time-series log of all data emitted by sensors (Temp, Lux, Noise DB, Motion).
+7. **`anomalies`**: System-generated alerts indicating unusual parameters (e.g., HVAC cooling an empty room).
+
+---
+
+## ⚙️ Backend Architecture
+
+The backend operates on a 3-tier architecture:
+1. **Client API Calls**: Frontend components query `src/app/api/` via HTTP requests.
+2. **Next.js Route Handlers**: Files inside `src/app/api/.../route.ts` authorize requests via JWT, process logic, and communicate with the Supabase Database using the `@supabase/supabase-js` client wrapper in `src/lib/services`.
+3. **Supabase Database & Real-Time**: Safely handles the transactions and emits changes to subscribed clients if needed. 
+*(Sensor data flows directly into Supabase via edge functions or external hardware hooks).*
+
+---
+
 ## 📦 Setup
 
 ### 1. Install dependencies
