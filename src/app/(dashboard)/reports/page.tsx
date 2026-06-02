@@ -362,13 +362,23 @@ function renderRoomsReport(data: any, getBuildingName: (id: string) => string) {
     grouped[key].push(r);
   });
 
-  // Summary stats
-  const totalOccupied = rooms.filter(r => r.room_status?.[0]?.occupancy === "OCCUPIED").length;
-  const avgTemp = rooms.reduce((sum, r) => {
-    const t = r.room_status?.[0]?.temperature_c;
-    return typeof t === "number" ? sum + t : sum;
-  }, 0);
-  const tempRooms = rooms.filter(r => typeof r.room_status?.[0]?.temperature_c === "number").length;
+  // Summary stats — use stats (aggregated from readings + sensor_readings) as primary source
+  const totalOccupied = rooms.filter(r =>
+    r.room_status?.[0]?.occupancy === "OCCUPIED" ||
+    (r.stats?.occupancyRate != null && r.stats.occupancyRate > 0)
+  ).length;
+
+  // Avg temperature: prefer stats.avgTemperature (aggregated), fall back to room_status
+  const tempValues: number[] = [];
+  rooms.forEach(r => {
+    const statsTemp = r.stats?.avgTemperature;
+    const statusTemp = r.room_status?.[0]?.temperature_c;
+    const temp = typeof statsTemp === "number" ? statsTemp : (typeof statusTemp === "number" ? statusTemp : null);
+    if (temp !== null) tempValues.push(temp);
+  });
+  const avgTemp = tempValues.reduce((sum, t) => sum + t, 0);
+  const tempRooms = tempValues.length;
+
   const ghostCooling = rooms.filter(r => r.room_status?.[0]?.ghost_cooling_active).length;
 
   return (

@@ -15,7 +15,7 @@ export async function GET(req: Request) {
     if (timeRange === "30d") hoursAgo = 24 * 30;
     
     let query = supabase
-      .from("readings")
+      .from("sensor_readings")
       .select("*")
       .order("created_at", { ascending: false })
       .limit(5000); // Fetch up to 5000 recent readings for better accuracy
@@ -46,6 +46,8 @@ export async function GET(req: Request) {
     let tempCount = 0;
     let occupiedCount = 0;
     let validOccupancyCount = 0;
+    let totalNoise = 0;
+    let noiseCount = 0;
 
     // Aggregate by Room
     const roomStats: Record<string, { rName: string; occupied: number; totalOcc: number; }> = {};
@@ -56,19 +58,26 @@ export async function GET(req: Request) {
     });
 
     readings?.forEach((r) => {
-      if (typeof r.temperature_c === "number") {
-         totalTemp += r.temperature_c;
+      if (typeof r.temp === "number") {
+         totalTemp += r.temp;
          tempCount++;
+      } else if (r.temp != null) {
+         const parsed = parseFloat(r.temp);
+         if (!isNaN(parsed)) { totalTemp += parsed; tempCount++; }
       }
-      if (r.occupancy_detected !== null) {
-         if (r.occupancy_detected) occupiedCount++;
+      if (r.noise_level != null) {
+         const noise = typeof r.noise_level === "number" ? r.noise_level : parseFloat(r.noise_level);
+         if (!isNaN(noise)) { totalNoise += noise; noiseCount++; }
+      }
+      if (r.is_occupied !== null) {
+         if (r.is_occupied) occupiedCount++;
          validOccupancyCount++;
       }
 
       // Group by room
       if (r.room_id && roomStats[r.room_id]) {
-        if (r.occupancy_detected !== null) {
-           if (r.occupancy_detected) roomStats[r.room_id].occupied++;
+        if (r.is_occupied !== null) {
+           if (r.is_occupied) roomStats[r.room_id].occupied++;
            roomStats[r.room_id].totalOcc++;
         }
       }
@@ -76,6 +85,7 @@ export async function GET(req: Request) {
 
     const avgTemperature = tempCount > 0 ? +(totalTemp / tempCount).toFixed(1) : 0;
     const occupancyRate = validOccupancyCount > 0 ? +((occupiedCount / validOccupancyCount) * 100).toFixed(1) : 0;
+    const avgNoiseLevel = noiseCount > 0 ? +(totalNoise / noiseCount).toFixed(1) : 0;
 
     const roomStatsArr = Object.values(roomStats)
       .map(r => ({
@@ -87,7 +97,7 @@ export async function GET(req: Request) {
     return NextResponse.json({
        avgTemperature,
        occupancyRate,
-       totalReadings: readings.length,
+       avgNoiseLevel,
        totalRoomsMonitored: rooms?.length || 0,
        roomStats: roomStatsArr
     });

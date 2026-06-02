@@ -13,7 +13,7 @@ interface RoomStat {
 interface AnalyticsData {
   avgTemperature: number;
   occupancyRate: number;
-  totalReadings: number;
+  avgNoiseLevel: number;
   totalRoomsMonitored: number;
   roomStats: RoomStat[];
 }
@@ -46,7 +46,7 @@ export default function AnalyticsPage() {
   }, [loadAnalytics]);
 
   // Real-time update when new readings are inserted
-  useRealtime({ table: "readings", event: "INSERT" }, () => {
+  useRealtime({ table: "sensor_readings", event: "INSERT" }, () => {
     loadAnalytics();
   });
 
@@ -109,10 +109,10 @@ export default function AnalyticsPage() {
           color="green"
         />
         <StatCard
-          icon="📈"
-          label="Data Points"
-          value={data?.totalReadings || 0}
-          sub="Recent telemetry processed"
+          icon="🔊"
+          label="Avg Sound Level"
+          value={data?.avgNoiseLevel ? `${data.avgNoiseLevel} dB` : "—"}
+          sub="Based on recent readings"
           color="amber"
         />
         <StatCard
@@ -153,24 +153,6 @@ export default function AnalyticsPage() {
             <p>No telemetry data available for room conditions yet.</p>
           </div>
         )}
-      </div>
-
-      <div className="card animate-in">
-        <h3 style={{ marginBottom: 16 }}>Key Insights</h3>
-        <ul style={{ listStyleType: "none", padding: 0 }}>
-          <li style={{ padding: "12px 0", borderBottom: "1px solid var(--border-color)", display: "flex", gap: "12px", alignItems: "center" }}>
-             <span className="badge amber">💡 Suggestion</span>
-             <span style={{ fontSize: "14px", color: "var(--text-secondary)" }}>
-               Consider optimizing HVAC systems; Ghost Cooling instances frequently occur between 18:00 and 22:00.
-             </span>
-          </li>
-          <li style={{ padding: "12px 0", display: "flex", gap: "12px", alignItems: "center" }}>
-             <span className="badge green">✨ Usage</span>
-             <span style={{ fontSize: "14px", color: "var(--text-secondary)" }}>
-               Highest average occupancy detected in the "Labs" zone today.
-             </span>
-          </li>
-        </ul>
       </div>
     </div>
   );

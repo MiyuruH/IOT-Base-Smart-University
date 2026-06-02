@@ -49,7 +49,91 @@ export async function GET(req: Request) {
       if (roomType) roomsQuery = roomsQuery.eq("type", roomType);
       const { data, error } = await roomsQuery;
       if (error) throw error;
-      rooms = data;
+
+      // Merge latest data from BOTH readings AND sensor_readings tables
+      if (data && data.length > 0) {
+        const roomIds = data.map((r: any) => r.room_id);
+
+        // Fetch from 'readings' table (internal sensor_nodes system)
+        const { data: latestReadings } = await supabase
+          .from("readings")
+          .select("room_id, temperature_c, occupancy_detected, noise_db, light_lux, ghost_cooling_suspected, created_at")
+          .in("room_id", roomIds)
+          .order("created_at", { ascending: false });
+
+        // Fetch from 'sensor_readings' table (ESP32 IoT data)
+        const { data: latestSensorReadings } = await supabase
+          .from("sensor_readings")
+          .select("room_id, temp, humidity, noise_level, is_occupied, light_status, created_at")
+          .in("room_id", roomIds)
+          .order("created_at", { ascending: false });
+
+        // Build a map: room_id -> latest reading from EITHER table (whichever is newer)
+        const latestByRoom: Record<string, any> = {};
+
+        // Process 'readings' table entries
+        if (latestReadings) {
+          for (const r of latestReadings) {
+            if (!latestByRoom[r.room_id]) {
+              latestByRoom[r.room_id] = {
+                temperature_c: r.temperature_c,
+                occupancy_detected: r.occupancy_detected,
+                noise_db: r.noise_db,
+                light_lux: r.light_lux,
+                ghost_cooling_suspected: r.ghost_cooling_suspected,
+                created_at: r.created_at,
+              };
+            }
+          }
+        }
+
+        // Process 'sensor_readings' table entries (ESP32) — use if newer
+        if (latestSensorReadings) {
+          for (const sr of latestSensorReadings) {
+            if (!sr.room_id) continue;
+            const existing = latestByRoom[sr.room_id];
+            const srTime = new Date(sr.created_at).getTime();
+            const exTime = existing ? new Date(existing.created_at).getTime() : 0;
+
+            if (!existing || srTime > exTime) {
+              const parsedTemp = sr.temp != null ? parseFloat(sr.temp) : NaN;
+              const parsedNoise = sr.noise_level != null ? parseFloat(sr.noise_level) : NaN;
+              latestByRoom[sr.room_id] = {
+                temperature_c: !isNaN(parsedTemp) ? parsedTemp : existing?.temperature_c ?? null,
+                occupancy_detected: sr.is_occupied ?? existing?.occupancy_detected ?? null,
+                noise_db: !isNaN(parsedNoise) ? parsedNoise : existing?.noise_db ?? null,
+                light_lux: sr.light_status != null ? (sr.light_status ? 500 : 0) : existing?.light_lux ?? null,
+                ghost_cooling_suspected: existing?.ghost_cooling_suspected ?? null,
+                created_at: sr.created_at,
+              };
+            }
+          }
+        }
+
+        // Merge the latest values into room_status
+        rooms = data.map((room: any) => {
+          const latest = latestByRoom[room.room_id];
+          const status = Array.isArray(room.room_status) ? room.room_status[0] : room.room_status;
+          if (!latest) return room;
+
+          const base = status || {};
+          const merged = {
+            ...base,
+            temperature_c: latest.temperature_c ?? base.temperature_c,
+            occupancy: latest.occupancy_detected ? "OCCUPIED" : "VACANT",
+            noise_db: latest.noise_db ?? base.noise_db,
+            light_lux: latest.light_lux ?? base.light_lux,
+            ghost_cooling_active: latest.ghost_cooling_suspected ?? base.ghost_cooling_active,
+          };
+
+          return {
+            ...room,
+            room_status: Array.isArray(room.room_status) ? [merged] : merged,
+          };
+        });
+      } else {
+        rooms = data;
+      }
     }
 
     // ----- ALERTS REPORT -----
@@ -88,17 +172,42 @@ export async function GET(req: Request) {
       }
     }
 
-    // ----- READINGS SUMMARY -----
+    // ----- READINGS SUMMARY (from both readings AND sensor_readings tables) -----
     if (category === "rooms" || category === "all") {
+      // Fetch from 'readings' table
       let readingsQuery = supabase
         .from("readings")
         .select("room_id, temperature_c, occupancy_detected, created_at")
         .order("created_at", { ascending: false })
         .limit(5000);
       if (timeFilter) readingsQuery = readingsQuery.gte("created_at", timeFilter);
-      const { data, error } = await readingsQuery;
-      if (error) throw error;
-      readings = data;
+      const { data: readingsData, error: readingsErr } = await readingsQuery;
+      if (readingsErr) throw readingsErr;
+
+      // Fetch from 'sensor_readings' table (ESP32 data)
+      let sensorQuery = supabase
+        .from("sensor_readings")
+        .select("room_id, temp, is_occupied, created_at")
+        .order("created_at", { ascending: false })
+        .limit(5000);
+      if (timeFilter) sensorQuery = sensorQuery.gte("created_at", timeFilter);
+      const { data: sensorData, error: sensorErr } = await sensorQuery;
+      if (sensorErr) throw sensorErr;
+
+      // Normalize sensor_readings to the same shape as readings
+      // Note: Supabase returns 'numeric' columns as strings, so we must parseFloat
+      const normalizedSensor = (sensorData || []).map((sr: any) => {
+        const parsedTemp = sr.temp != null ? parseFloat(sr.temp) : NaN;
+        return {
+          room_id: sr.room_id,
+          temperature_c: !isNaN(parsedTemp) ? parsedTemp : null,
+          occupancy_detected: sr.is_occupied,
+          created_at: sr.created_at,
+        };
+      });
+
+      // Combine both sources
+      readings = [...(readingsData || []), ...normalizedSensor];
     }
 
     // Build the report data object

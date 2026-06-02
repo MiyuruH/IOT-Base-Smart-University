@@ -105,8 +105,12 @@ void loop() {
   // ==========================================
   // 2. PERIODIC DATA PUSH (Every 3 seconds)
   // ==========================================
+  // Non-blocking timer: millis() tracks total uptime in milliseconds.
+  // Subtracting lastNetworkPushMillis gives time passed since the last data push.
+  // If 3000ms (3 seconds) have passed, we push the data and reset the timer.
+  // This allows the ESP32 to keep sensing continuously without freezing.
   if (millis() - lastNetworkPushMillis >= PUSH_INTERVAL) {
-    lastNetworkPushMillis = millis();
+    lastNetworkPushMillis = millis(); // Reset the timer for the next 3-second interval
     
     // Read DHT11 (Slow sensor, takes ~250ms)
     float h = dht.readHumidity();

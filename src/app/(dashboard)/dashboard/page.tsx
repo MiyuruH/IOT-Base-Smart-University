@@ -7,6 +7,7 @@ import { useRealtime } from "@/hooks/useRealtime";
 interface DashboardStats {
   buildings: number;
   rooms: number;
+  occupiedRooms: number;
   sensors: number;
   activeAlerts: number;
 }
@@ -26,9 +27,11 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats>({
     buildings: 0,
     rooms: 0,
+    occupiedRooms: 0,
     sensors: 0,
     activeAlerts: 0,
   });
+  const [occupiedRoomsList, setOccupiedRoomsList] = useState<any[]>([]);
   const [readings, setReadings] = useState<Reading[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -57,9 +60,22 @@ export default function DashboardPage() {
           readingsRes.json(),
         ]);
 
+      let occupiedCount = 0;
+      let occupiedList: any[] = [];
+      if (Array.isArray(rooms)) {
+        occupiedList = rooms.filter((r: any) => {
+          const status = Array.isArray(r.room_status) ? r.room_status[0] : r.room_status;
+          return status?.occupancy === "OCCUPIED";
+        });
+        occupiedCount = occupiedList.length;
+      }
+      
+      setOccupiedRoomsList(occupiedList);
+
       setStats({
         buildings: Array.isArray(buildings) ? buildings.length : 0,
         rooms: Array.isArray(rooms) ? rooms.length : 0,
+        occupiedRooms: occupiedCount,
         sensors: Array.isArray(sensors) ? sensors.length : 0,
         activeAlerts: Array.isArray(alerts) ? alerts.length : 0,
       });
@@ -79,10 +95,18 @@ export default function DashboardPage() {
   }, [fetchDashboardData]);
 
   // Realtime: subscribe to new readings
-  useRealtime<Reading>(
+  useRealtime(
     { table: "readings", event: "INSERT" },
-    (newReading) => {
-      setReadings((prev) => [newReading, ...prev.slice(0, 9)]);
+    () => {
+      fetchDashboardData();
+    }
+  );
+
+  // Realtime: subscribe to ESP32 sensor_readings
+  useRealtime(
+    { table: "sensor_readings", event: "INSERT" },
+    () => {
+      fetchDashboardData();
     }
   );
 
@@ -117,6 +141,13 @@ export default function DashboardPage() {
           color="green"
         />
         <StatCard
+          icon="👥"
+          label="Occupied Rooms"
+          value={stats.occupiedRooms}
+          sub="Currently in use"
+          color="purple"
+        />
+        <StatCard
           icon="📡"
           label="Active Sensors"
           value={stats.sensors}
@@ -130,6 +161,49 @@ export default function DashboardPage() {
           sub="Require attention"
           color="red"
         />
+      </div>
+
+      <div className="table-container animate-in" style={{ marginBottom: 32 }}>
+        <div className="table-header">
+          <h3>Occupied Rooms</h3>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Room Name</th>
+              <th>Code</th>
+              <th>Type</th>
+              <th>Temperature</th>
+            </tr>
+          </thead>
+          <tbody>
+            {occupiedRoomsList.length === 0 ? (
+              <tr>
+                <td colSpan={4} style={{ textAlign: "center", padding: 40 }}>
+                  No rooms are currently occupied.
+                </td>
+              </tr>
+            ) : (
+              occupiedRoomsList.map((r) => {
+                const status = Array.isArray(r.room_status) ? r.room_status[0] : r.room_status;
+                return (
+                  <tr key={r.room_id}>
+                    <td style={{ color: "var(--text-primary)", fontWeight: 500 }}>
+                      {r.name || "—"}
+                    </td>
+                    <td>{r.code || "—"}</td>
+                    <td>
+                      <span className={`badge ${r.type === "LAB" ? "blue" : r.type === "HALL" ? "green" : "amber"}`}>
+                        {r.type || "—"}
+                      </span>
+                    </td>
+                    <td>{status?.temperature_c != null ? `${status.temperature_c}°C` : "—"}</td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
       </div>
 
       <div className="table-container animate-in">
