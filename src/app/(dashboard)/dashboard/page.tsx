@@ -33,6 +33,7 @@ export default function DashboardPage() {
   });
   const [occupiedRoomsList, setOccupiedRoomsList] = useState<any[]>([]);
   const [readings, setReadings] = useState<Reading[]>([]);
+  const [allRooms, setAllRooms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchDashboardData = useCallback(async () => {
@@ -48,7 +49,7 @@ export default function DashboardPage() {
           fetch("/api/rooms", { headers }),
           fetch("/api/sensors", { headers }),
           fetch("/api/alerts", { headers }),
-          fetch("/api/readings?limit=10", { headers }),
+          fetch("/api/readings?limit=100", { headers }),
         ]);
 
       const [buildings, rooms, sensors, alerts, recentReadings] =
@@ -63,8 +64,9 @@ export default function DashboardPage() {
       let occupiedCount = 0;
       let occupiedList: any[] = [];
       if (Array.isArray(rooms)) {
-        occupiedList = rooms.filter((r: any) => {
-          const status = Array.isArray(r.room_status) ? r.room_status[0] : r.room_status;
+        setAllRooms(rooms);
+        occupiedList = rooms.filter((r: { room_status?: { occupancy?: string } }) => {
+          const status = r.room_status;
           return status?.occupancy === "OCCUPIED";
         });
         occupiedCount = occupiedList.length;
@@ -185,7 +187,7 @@ export default function DashboardPage() {
               </tr>
             ) : (
               occupiedRoomsList.map((r) => {
-                const status = Array.isArray(r.room_status) ? r.room_status[0] : r.room_status;
+                const status = r.room_status;
                 return (
                   <tr key={r.room_id}>
                     <td style={{ color: "var(--text-primary)", fontWeight: 500 }}>
@@ -222,10 +224,11 @@ export default function DashboardPage() {
             </span>
           </div>
         </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Node</th>
+        <div style={{ maxHeight: 500, overflowY: "auto" }}>
+          <table>
+            <thead style={{ position: "sticky", top: 0, background: "var(--bg-secondary)", zIndex: 1 }}>
+              <tr>
+              <th>Room</th>
               <th>Temp °C</th>
               <th>Noise dB</th>
               <th>Light lux</th>
@@ -241,12 +244,16 @@ export default function DashboardPage() {
                 </td>
               </tr>
             ) : (
-              readings.map((r) => (
-                <tr key={r.reading_id}>
-                  <td style={{ color: "var(--text-primary)", fontWeight: 500 }}>
-                    {r.node_id}
-                  </td>
-                  <td>{r.temperature_c ?? "—"}</td>
+              readings.map((r) => {
+                const room = allRooms.find(rm => rm.room_id === r.room_id);
+                const roomDisplay = room ? (room.name || room.code || r.node_id) : r.node_id;
+
+                return (
+                  <tr key={r.reading_id}>
+                    <td style={{ color: "var(--text-primary)", fontWeight: 500 }}>
+                      {roomDisplay}
+                    </td>
+                    <td>{r.temperature_c ?? "—"}</td>
                   <td>{r.noise_db ?? "—"}</td>
                   <td>{r.light_lux ?? "—"}</td>
                   <td>
@@ -261,10 +268,12 @@ export default function DashboardPage() {
                     {new Date(r.created_at).toLocaleTimeString()}
                   </td>
                 </tr>
-              ))
+                );
+              })
             )}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 const pageMeta: Record<string, { title: string; subtitle: string }> = {
@@ -16,6 +16,7 @@ const pageMeta: Record<string, { title: string; subtitle: string }> = {
 
 export default function TopNavbar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [time, setTime] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -60,7 +61,12 @@ export default function TopNavbar() {
           Operational
         </span>
         <span className="top-navbar-time">{time}</span>
-        <div className="top-navbar-avatar">
+        <div 
+          className="top-navbar-avatar" 
+          onClick={() => router.push("/settings")}
+          style={{ cursor: "pointer" }}
+          title="Profile Settings"
+        >
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
             <circle cx="12" cy="7" r="4" />

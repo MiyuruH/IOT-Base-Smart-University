@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import StatCard from "@/components/StatCard";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, AreaChart, Area } from "recharts";
 import { useRealtime } from "@/hooks/useRealtime";
 
 interface RoomStat {
@@ -12,10 +12,18 @@ interface RoomStat {
 
 interface AnalyticsData {
   avgTemperature: number;
-  occupancyRate: number;
+  envHealthScore: number;
   avgNoiseLevel: number;
   totalRoomsMonitored: number;
+  activeRoomsCount: number;
+  peakOccupancy: number;
   roomStats: RoomStat[];
+  trends: {
+    time: string;
+    temp: number | null;
+    noise: number | null;
+    peakOccupancy: number;
+  }[];
 }
 
 export default function AnalyticsPage() {
@@ -95,6 +103,20 @@ export default function AnalyticsPage() {
 
       <div className="card-grid" style={{ marginBottom: 32 }}>
         <StatCard
+          icon="👥"
+          label="Peak Campus Occupancy"
+          value={data?.peakOccupancy || 0}
+          sub="Max rooms used simultaneously"
+          color="purple"
+        />
+        <StatCard
+          icon="🌿"
+          label="Environment Health"
+          value={data?.envHealthScore != null ? `${data.envHealthScore}%` : "—"}
+          sub="Optimal temp & noise levels"
+          color="green"
+        />
+        <StatCard
           icon="🌡"
           label="Avg Campus Temp"
           value={data?.avgTemperature ? `${data.avgTemperature}°C` : "—"}
@@ -102,26 +124,67 @@ export default function AnalyticsPage() {
           color="blue"
         />
         <StatCard
-          icon="👥"
-          label="Occupancy Rate"
-          value={data?.occupancyRate != null ? `${data.occupancyRate}%` : "—"}
-          sub="Overall campus utilization"
-          color="green"
-        />
-        <StatCard
-          icon="🔊"
-          label="Avg Sound Level"
-          value={data?.avgNoiseLevel ? `${data.avgNoiseLevel} dB` : "—"}
-          sub="Based on recent readings"
+          icon="🏢"
+          label="Active Rooms"
+          value={data ? `${data.activeRoomsCount} / ${data.totalRoomsMonitored}` : "0"}
+          sub="Rooms supplying data"
           color="amber"
         />
-        <StatCard
-          icon="🏢"
-          label="Measured Rooms"
-          value={data?.totalRoomsMonitored || 0}
-          sub="Rooms supplying data"
-          color="purple"
-        />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px', marginBottom: '32px' }}>
+        {/* Graphical Representation of Peak Activity */}
+        <div className="card animate-in">
+          <h3 style={{ marginBottom: 16 }}>Peak Activity Times</h3>
+          {data?.trends && data.trends.length > 0 ? (
+            <div style={{ width: "100%", height: 300 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={data.trends} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorOccupancy" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--accent-purple)" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="var(--accent-purple)" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
+                  <XAxis dataKey="time" stroke="var(--text-secondary)" />
+                  <YAxis stroke="var(--accent-purple)" />
+                  <Tooltip contentStyle={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px' }} />
+                  <Area type="monotone" dataKey="peakOccupancy" name="Rooms Occupied" stroke="var(--accent-purple)" fillOpacity={1} fill="url(#colorOccupancy)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div style={{ textAlign: "center", padding: "40px", color: "var(--text-muted)" }}>
+              <p>No telemetry data available.</p>
+            </div>
+          )}
+        </div>
+
+        {/* Environmental Trends */}
+        <div className="card animate-in">
+          <h3 style={{ marginBottom: 16 }}>Environmental Trends</h3>
+          {data?.trends && data.trends.length > 0 ? (
+            <div style={{ width: "100%", height: 300 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={data.trends} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
+                  <XAxis dataKey="time" stroke="var(--text-secondary)" />
+                  <YAxis yAxisId="left" stroke="var(--accent-blue)" />
+                  <YAxis yAxisId="right" orientation="right" stroke="var(--accent-amber)" />
+                  <Tooltip contentStyle={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px' }} />
+                  <Legend />
+                  <Line yAxisId="left" type="monotone" dataKey="temp" name="Temp (°C)" stroke="var(--accent-blue)" dot={false} strokeWidth={2} />
+                  <Line yAxisId="right" type="monotone" dataKey="noise" name="Noise (dB)" stroke="var(--accent-amber)" dot={false} strokeWidth={2} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div style={{ textAlign: "center", padding: "40px", color: "var(--text-muted)" }}>
+              <p>No telemetry data available.</p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Graphical Representation of Room Occupancy */}

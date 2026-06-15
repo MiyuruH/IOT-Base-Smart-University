@@ -14,7 +14,7 @@
 
 
 // IMPORTANT: The target room in Supabase this data belongs to
-#define TARGET_ROOM_ID "391cffab-41d9-4519-abc0-1cbc66483e0b"
+#define TARGET_ROOM_ID "3697903e-6d5d-4243-a77f-b7d733a775d2"
 
 // --- Pin Definitions ---
 #define DHTPIN 14 
@@ -38,22 +38,66 @@ float maxDbSinceLastPush = 40.0;
 bool motionDetectedSinceLastPush = false;
 unsigned long lastSoundCalcMillis = 0;
 
-// --- Hold Timer Variables ---
+// Short debounce so dashboard reflects current motion/noise (not a 3‑min hold)
+const unsigned long OCCUPANCY_DEBOUNCE_MS = 15000; // 15 seconds
 unsigned long lastOccupancyTime = 0;
 bool hasStartedOccupancy = false;
-const unsigned long OCCUPANCY_HOLD_TIME = 180000; // 3 minutes in milliseconds
+
+const char* wifiStatusText(wl_status_t status) {
+  switch (status) {
+    case WL_NO_SSID_AVAIL: return "SSID not found (wrong name or out of range)";
+    case WL_CONNECT_FAILED: return "Wrong password or auth failed";
+    case WL_CONNECTION_LOST: return "Connection lost";
+    case WL_DISCONNECTED: return "Disconnected";
+    default: return "Still connecting...";
+  }
+}
+
+bool connectWiFi() {
+  Serial.printf("Connecting to \"%s\" (2.4 GHz only)...\n", WIFI_SSID);
+  WiFi.mode(WIFI_STA);
+  WiFi.disconnect(true);
+  delay(100);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+
+  const int maxAttempts = 40; // ~20 seconds
+  for (int attempt = 0; attempt < maxAttempts; attempt++) {
+    wl_status_t status = WiFi.status();
+    if (status == WL_CONNECTED) {
+      Serial.println("WiFi Connected");
+      Serial.print("ESP32 IP Address: ");
+      Serial.println(WiFi.localIP());
+      return true;
+    }
+    Serial.print(".");
+    if (attempt % 4 == 3) {
+      Serial.printf(" [%s] ", wifiStatusText(status));
+    }
+    delay(500);
+  }
+
+  Serial.println();
+  Serial.printf(
+    "WiFi failed after %d s. Status=%d (%s)\n",
+    maxAttempts / 2,
+    WiFi.status(),
+    wifiStatusText(WiFi.status())
+  );
+  Serial.println("Check: SSID/password, 2.4 GHz network, router in range.");
+  return false;
+}
 
 void setup() {
   Serial.begin(115200);
+  delay(500);
+  Serial.println("\nNavSense ESP32 starting...");
   pinMode(pirPin, INPUT);
   pinMode(soundPin, INPUT);
   dht.begin();
 
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  while (WiFi.status() != WL_CONNECTED) { delay(500); Serial.print("."); }
-  Serial.println("\nWiFi Connected");
-  Serial.print("ESP32 IP Address: ");
-  Serial.println(WiFi.localIP());
+  if (!connectWiFi()) {
+    Serial.println("Retrying WiFi in loop() — fix credentials or network.");
+  }
 
   timeClient.begin();
 }
@@ -120,20 +164,15 @@ void loop() {
     int ldr = analogRead(ldrPin);
     bool lightOn = (ldr < 2000); 
     
-    // --- HOLD TIMER LOGIC ---
-    bool isOcc = false;
-    
-    // 1. Check for fresh activity (using sensitive 60dB threshold)
-    if (motionDetectedSinceLastPush || maxDbSinceLastPush > 60) {
-      lastOccupancyTime = millis(); // Reset the 3-minute timer
+    // Occupancy: motion or loud noise this interval; 15s debounce after activity stops
+    bool activityNow = motionDetectedSinceLastPush || maxDbSinceLastPush > 60;
+    if (activityNow) {
+      lastOccupancyTime = millis();
       hasStartedOccupancy = true;
     }
-    
-    // 2. Room is occupied if the timer hasn't expired
-    if (hasStartedOccupancy) {
-      if (millis() - lastOccupancyTime < OCCUPANCY_HOLD_TIME) {
-        isOcc = true;
-      }
+    bool isOcc = activityNow;
+    if (!isOcc && hasStartedOccupancy) {
+      isOcc = (millis() - lastOccupancyTime < OCCUPANCY_DEBOUNCE_MS);
     }
 
     // --- Serial Monitor Preview ---
@@ -179,8 +218,8 @@ void loop() {
       http.end();
       client.stop(); // Force socket to close properly
     } else {
-      Serial.println("WiFi Disconnected! Please check connection.");
-      WiFi.reconnect();
+      Serial.println("WiFi Disconnected! Reconnecting...");
+      connectWiFi();
     }
     
     // --- Reset trackers for the next interval ---

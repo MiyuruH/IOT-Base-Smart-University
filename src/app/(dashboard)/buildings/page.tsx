@@ -29,6 +29,8 @@ export default function BuildingsPage() {
   const [selectedBuilding, setSelectedBuilding] = useState<Building | null>(null);
   const [roomsList, setRoomsList] = useState<any[]>([]);
   const [isLoadingRooms, setIsLoadingRooms] = useState(false);
+  const [buildingFloors, setBuildingFloors] = useState<any[]>([]);
+  const [selectedFloorFilter, setSelectedFloorFilter] = useState<string>("all");
 
   const fetchBuildings = useCallback(async () => {
     try {
@@ -132,12 +134,22 @@ export default function BuildingsPage() {
     setSelectedBuilding(b);
     setIsLoadingRooms(true);
     setRoomsList([]);
+    setBuildingFloors([]);
+    setSelectedFloorFilter("all");
     try {
       const token = localStorage.getItem("token");
       const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
-      const res = await fetch(`/api/rooms?building_id=${b.building_id}`, { headers });
-      const data = await res.json();
-      if (Array.isArray(data)) setRoomsList(data);
+      
+      const [roomsRes, bRes] = await Promise.all([
+        fetch(`/api/rooms?building_id=${b.building_id}`, { headers }),
+        fetch(`/api/buildings/${b.building_id}`, { headers })
+      ]);
+      
+      const roomsData = await roomsRes.json();
+      const bData = await bRes.json();
+      
+      if (Array.isArray(roomsData)) setRoomsList(roomsData);
+      if (bData && Array.isArray(bData.floors)) setBuildingFloors(bData.floors);
     } catch (err) {
       console.error(err);
     } finally {
@@ -356,40 +368,68 @@ export default function BuildingsPage() {
               </button>
             </div>
 
+            {/* Floor Filter */}
+            {buildingFloors.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <select 
+                  className="form-input" 
+                  value={selectedFloorFilter} 
+                  onChange={(e) => setSelectedFloorFilter(e.target.value)}
+                  style={{ width: '100%' }}
+                >
+                  <option value="all">All Floors</option>
+                  {buildingFloors.map(f => (
+                    <option key={f.floor_id} value={f.floor_id}>{f.name} (Lvl {f.level})</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             <div style={{ overflowY: 'auto', flex: 1, paddingRight: 4 }}>
               {isLoadingRooms ? (
                 <div style={{ display: 'flex', justifyContent: 'center', padding: '20px 0' }}>Loading rooms...</div>
-              ) : roomsList.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--text-muted)' }}>
-                  No rooms found in this building.
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {roomsList.map(room => (
-                    <div key={room.room_id} style={{ 
-                      padding: '12px 16px', 
-                      background: 'rgba(255,255,255,0.03)', 
-                      borderRadius: 8,
-                      border: '1px solid var(--border-color)',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center'
-                    }}>
-                      <div>
-                        <div style={{ fontWeight: 600 }}>{room.name}</div>
-                        <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Room: {room.room_number || 'N/A'}</div>
-                      </div>
-                      <button 
-                        className="btn btn-secondary" 
-                        style={{ padding: '6px 12px', fontSize: '13px' }}
-                        onClick={() => router.push(`/rooms/${room.room_id}`)}
-                      >
-                        View Room
-                      </button>
+              ) : (() => {
+                const filteredRooms = roomsList.filter(room => {
+                  if (selectedFloorFilter === "all") return true;
+                  return room.floor_id === selectedFloorFilter;
+                });
+                
+                if (filteredRooms.length === 0) {
+                  return (
+                    <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--text-muted)' }}>
+                      No rooms found for this selection.
                     </div>
-                  ))}
-                </div>
-              )}
+                  );
+                }
+
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {filteredRooms.map(room => (
+                      <div key={room.room_id} style={{ 
+                        padding: '12px 16px', 
+                        background: 'rgba(255,255,255,0.03)', 
+                        borderRadius: 8,
+                        border: '1px solid var(--border-color)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}>
+                        <div>
+                          <div style={{ fontWeight: 600 }}>{room.name}</div>
+                          <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Room: {room.room_number || room.code || 'N/A'}</div>
+                        </div>
+                        <button 
+                          className="btn btn-secondary" 
+                          style={{ padding: '6px 12px', fontSize: '13px' }}
+                          onClick={() => router.push(`/rooms/${room.room_id}`)}
+                        >
+                          View Room
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>

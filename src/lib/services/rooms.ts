@@ -1,4 +1,8 @@
 import { supabase } from "@/lib/supabase";
+import {
+  buildLiveRoomStatus,
+  getLatestByRoom,
+} from "@/lib/services/latestSensorData";
 
 export async function getRooms(building_id?: string) {
   let query = supabase
@@ -15,43 +19,22 @@ export async function getRooms(building_id?: string) {
 
   if (!data || data.length === 0) return data;
 
-  // For each room, fetch the latest reading from the sensor node
-  const roomIds = data.map((r: any) => r.room_id);
-  const { data: latestReadings } = await supabase
-    .from("readings")
-    .select("room_id, temperature_c, occupancy_detected, noise_db, light_lux, ghost_cooling_suspected, created_at")
-    .in("room_id", roomIds)
-    .order("created_at", { ascending: false });
+  const roomIds = data.map((r: { room_id: string }) => r.room_id);
+  const latestByRoom = await getLatestByRoom(roomIds);
 
-  // Build a map: room_id -> latest reading
-  const latestByRoom: Record<string, any> = {};
-  if (latestReadings) {
-    for (const r of latestReadings) {
-      if (!latestByRoom[r.room_id]) {
-        latestByRoom[r.room_id] = r;
-      }
-    }
-  }
-
-  // Merge the latest reading values into room_status, keeping updated_at from room_status
-  return data.map((room: any) => {
+  return data.map((room: { room_id: string; room_status: unknown }) => {
     const latest = latestByRoom[room.room_id];
-    const status = Array.isArray(room.room_status) ? room.room_status[0] : room.room_status;
-    if (!latest || !status) return room;
-
-    const merged = {
-      ...status,
-      temperature_c: latest.temperature_c ?? status.temperature_c,
-      occupancy: latest.occupancy_detected ? "OCCUPIED" : "VACANT",
-      noise_db: latest.noise_db ?? status.noise_db,
-      light_lux: latest.light_lux ?? status.light_lux,
-      ghost_cooling_active: latest.ghost_cooling_suspected ?? status.ghost_cooling_active,
-      // updated_at intentionally kept from room_status (not overwritten)
-    };
+    const status = Array.isArray(room.room_status)
+      ? room.room_status[0]
+      : room.room_status;
+    const merged = buildLiveRoomStatus(
+      status as Record<string, unknown> | undefined,
+      latest
+    );
 
     return {
       ...room,
-      room_status: Array.isArray(room.room_status) ? [merged] : merged,
+      room_status: merged,
     };
   });
 }
@@ -64,7 +47,21 @@ export async function getRoomById(room_id: string) {
     .single();
 
   if (error) throw error;
-  return data;
+
+  const latestByRoom = await getLatestByRoom([room_id]);
+  const latest = latestByRoom[room_id];
+  const status = Array.isArray(data.room_status)
+    ? data.room_status[0]
+    : data.room_status;
+  const merged = buildLiveRoomStatus(
+    status as Record<string, unknown> | undefined,
+    latest
+  );
+
+  return {
+    ...data,
+    room_status: merged,
+  };
 }
 
 export async function createRoom(input: {
@@ -125,16 +122,6 @@ export async function getRoomStatus(room_id: string) {
 
   if (error) throw error;
 
-  // Fetch the latest reading from the sensor node
-  const { data: latestReading } = await supabase
-    .from("readings")
-    .select("temperature_c, occupancy_detected, noise_db, light_lux, ghost_cooling_suspected, created_at")
-    .eq("room_id", room_id)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .single();
-
-  // Base defaults when no status row exists yet
   const base = data ?? {
     room_id,
     occupancy: null,
@@ -144,25 +131,10 @@ export async function getRoomStatus(room_id: string) {
     ghost_cooling_active: null,
     ghost_cooling_level: null,
     ghost_cooling_reason: null,
-    updated_at: null,      // kept from room_status — not from reading
+    updated_at: null,
     last_reading_id: null,
   };
 
-  // Overlay sensor values from the latest reading.
-  // updated_at is intentionally NOT overwritten — it stays as the room_status value.
-  if (latestReading) {
-    return {
-      ...base,
-      temperature_c: latestReading.temperature_c ?? base.temperature_c,
-      occupancy: latestReading.occupancy_detected != null
-        ? (latestReading.occupancy_detected ? "OCCUPIED" : "VACANT")
-        : base.occupancy,
-      noise_db: latestReading.noise_db ?? base.noise_db,
-      light_lux: latestReading.light_lux ?? base.light_lux,
-      ghost_cooling_active: latestReading.ghost_cooling_suspected ?? base.ghost_cooling_active,
-      last_sensor_reading_at: latestReading.created_at, // extra field for UI info
-    };
-  }
-
-  return base;
+  const latestByRoom = await getLatestByRoom([room_id]);
+  return buildLiveRoomStatus(base, latestByRoom[room_id]);
 }

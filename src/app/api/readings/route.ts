@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getReadings, createReading } from "@/lib/services/sensors";
+import { createReading, getReadings } from "@/lib/services/sensors";
+import { getRecentLiveReadings } from "@/lib/services/latestSensorData";
 import { requireAuth } from "@/lib/authGuard";
 
 export async function GET(req: Request) {
@@ -10,7 +11,11 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const room_id = searchParams.get("room_id") || undefined;
     const limit = parseInt(searchParams.get("limit") || "50");
-    const readings = await getReadings(room_id, limit);
+    if (room_id) {
+      const readings = await getReadings(room_id, limit);
+      return NextResponse.json(readings);
+    }
+    const readings = await getRecentLiveReadings(limit);
     return NextResponse.json(readings);
   } catch {
     return NextResponse.json(

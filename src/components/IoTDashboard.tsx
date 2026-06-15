@@ -151,7 +151,7 @@ export default function IoTDashboard({ roomId }: { roomId: string }) {
         <div style={{ marginTop: 12 }}>
            <span className="badge blue" style={{ padding: "8px 16px", fontSize: 13 }}>
              <span className="badge-dot" style={{ animation: "pulse 1.5s infinite" }}/> 
-             Listening for real-time sensor data...
+             Waiting to listen for real-time sensor data...
            </span>
         </div>
       </div>

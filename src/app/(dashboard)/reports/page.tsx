@@ -362,24 +362,25 @@ function renderRoomsReport(data: any, getBuildingName: (id: string) => string) {
     grouped[key].push(r);
   });
 
-  // Summary stats — use stats (aggregated from readings + sensor_readings) as primary source
-  const totalOccupied = rooms.filter(r =>
-    r.room_status?.[0]?.occupancy === "OCCUPIED" ||
-    (r.stats?.occupancyRate != null && r.stats.occupancyRate > 0)
-  ).length;
+  // Live occupancy only (latest sensor snapshot, not historical %)
+  const totalOccupied = rooms.filter((r) => {
+    const status = Array.isArray(r.room_status) ? r.room_status[0] : r.room_status;
+    return status?.occupancy === "OCCUPIED";
+  }).length;
 
-  // Avg temperature: prefer stats.avgTemperature (aggregated), fall back to room_status
+  // Avg temperature from current live readings (not historical average)
   const tempValues: number[] = [];
-  rooms.forEach(r => {
-    const statsTemp = r.stats?.avgTemperature;
-    const statusTemp = r.room_status?.[0]?.temperature_c;
-    const temp = typeof statsTemp === "number" ? statsTemp : (typeof statusTemp === "number" ? statusTemp : null);
-    if (temp !== null) tempValues.push(temp);
+  rooms.forEach((r) => {
+    const status = Array.isArray(r.room_status) ? r.room_status[0] : r.room_status;
+    if (typeof status?.temperature_c === "number") tempValues.push(status.temperature_c);
   });
   const avgTemp = tempValues.reduce((sum, t) => sum + t, 0);
   const tempRooms = tempValues.length;
 
-  const ghostCooling = rooms.filter(r => r.room_status?.[0]?.ghost_cooling_active).length;
+  const ghostCooling = rooms.filter((r) => {
+    const status = Array.isArray(r.room_status) ? r.room_status[0] : r.room_status;
+    return status?.ghost_cooling_active;
+  }).length;
 
   return (
     <>
@@ -419,16 +420,16 @@ function renderRoomsReport(data: any, getBuildingName: (id: string) => string) {
                 <tr>
                   <th>Room</th>
                   <th>Type</th>
-                  <th>Status</th>
-                  <th>Temperature</th>
-                  <th>Avg Temp</th>
-                  <th>Occupancy Rate</th>
+                  <th>Current status</th>
+                  <th>Live temp</th>
+                  <th>Avg temp (period)</th>
+                  <th>Occupancy % (period)</th>
                   <th>Sensors</th>
                 </tr>
               </thead>
               <tbody>
                 {bRooms.map((r) => {
-                  const status = r.room_status?.[0] || {};
+                  const status = (Array.isArray(r.room_status) ? r.room_status[0] : r.room_status) || {};
                   return (
                     <tr key={r.room_id}>
                       <td style={{ fontWeight: 500, color: "var(--text-primary)" }}>
@@ -437,9 +438,21 @@ function renderRoomsReport(data: any, getBuildingName: (id: string) => string) {
                       </td>
                       <td><span className={`badge ${r.type === "LAB" ? "blue" : r.type === "HALL" ? "green" : "amber"}`}>{r.type || "—"}</span></td>
                       <td>
-                        <span className={`badge ${status.occupancy === "OCCUPIED" ? "green" : "red"}`}>
+                        <span className={`badge ${
+                          status.occupancy === "OCCUPIED"
+                            ? "green"
+                            : status.occupancy === "EMPTY"
+                              ? "red"
+                              : "amber"
+                        }`}>
                           <span className="badge-dot" />
-                          {status.occupancy === "OCCUPIED" ? "Occupied" : "Empty"}
+                          {status.occupancy === "OCCUPIED"
+                            ? "Occupied"
+                            : status.occupancy === "EMPTY"
+                              ? "Empty"
+                              : status.is_stale
+                                ? "No recent data"
+                                : "Unknown"}
                         </span>
                       </td>
                       <td>{status.temperature_c != null ? `${status.temperature_c}°C` : "—"}</td>

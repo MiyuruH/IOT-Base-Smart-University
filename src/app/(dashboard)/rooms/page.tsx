@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useRealtime } from "@/hooks/useRealtime";
 
 interface RoomStatus {
   occupancy: string | null;
@@ -20,6 +21,7 @@ interface Room {
   created_at: string;
   room_status: RoomStatus | null;
   floors?: { name: string; level: number } | null;
+  sensor_nodes?: { node_id: string; is_active: boolean }[] | null;
 }
 
 interface Building {
@@ -118,6 +120,9 @@ export default function RoomsPage() {
     fetchRooms();
     fetchBuildings();
   }, [fetchRooms, fetchBuildings]);
+
+  useRealtime({ table: "sensor_readings", event: "INSERT" }, fetchRooms);
+  useRealtime({ table: "readings", event: "INSERT" }, fetchRooms);
 
   useEffect(() => {
     // Whenever building_id changes, fetch the corresponding floors for the dropdown
@@ -271,6 +276,7 @@ export default function RoomsPage() {
                 <th style={{ padding: '16px', fontWeight: 600, color: 'var(--text-secondary)' }}>Occupancy</th>
                 <th style={{ padding: '16px', fontWeight: 600, color: 'var(--text-secondary)' }}>Temperature</th>
                 <th style={{ padding: '16px', fontWeight: 600, color: 'var(--text-secondary)' }}>Ghost Cooling</th>
+                <th style={{ padding: '16px', fontWeight: 600, color: 'var(--text-secondary)' }}>Node Status</th>
                 <th style={{ padding: '16px', fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
@@ -290,13 +296,22 @@ export default function RoomsPage() {
                     <span className="badge blue">{room.type}</span>
                   </td>
                   <td style={{ padding: '16px' }}>
-                    {room.room_status?.occupancy ? (
-                      <span className={`badge ${room.room_status.occupancy === "OCCUPIED" ? "green" : "red"}`}>
+                    {room.room_status?.occupancy === "OCCUPIED" ? (
+                      <span className="badge green">
                         <span className="badge-dot" />
-                        {room.room_status.occupancy}
+                        Occupied
+                      </span>
+                    ) : room.room_status?.occupancy === "EMPTY" ? (
+                      <span className="badge red">
+                        <span className="badge-dot" />
+                        Empty
                       </span>
                     ) : (
-                      <span style={{ color: "var(--text-muted)", fontSize: 13 }}>Unknown</span>
+                      <span style={{ color: "var(--text-muted)", fontSize: 13 }}>
+                        {(room.room_status as { is_stale?: boolean })?.is_stale
+                          ? "No recent data"
+                          : "Unknown"}
+                      </span>
                     )}
                   </td>
                   <td style={{ padding: '16px' }}>
@@ -312,6 +327,19 @@ export default function RoomsPage() {
                       </span>
                     ) : (
                       <span style={{ color: "var(--text-muted)" }}>—</span>
+                    )}
+                  </td>
+                  <td style={{ padding: '16px' }}>
+                    {(!room.sensor_nodes || room.sensor_nodes.length === 0) ? (
+                      <span className="badge gray" style={{ backgroundColor: 'rgba(156, 163, 175, 0.2)', color: '#9ca3af' }}>Not Connected</span>
+                    ) : (room.room_status as any)?.is_stale ? (
+                      <span className="badge red" style={{ backgroundColor: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' }}>
+                        <span className="badge-dot" style={{ backgroundColor: '#ef4444' }} /> Offline
+                      </span>
+                    ) : (
+                      <span className="badge green" style={{ backgroundColor: 'rgba(16, 185, 129, 0.2)', color: '#10b981' }}>
+                        <span className="badge-dot" style={{ backgroundColor: '#10b981' }} /> Online
+                      </span>
                     )}
                   </td>
                   <td style={{ padding: '16px', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>

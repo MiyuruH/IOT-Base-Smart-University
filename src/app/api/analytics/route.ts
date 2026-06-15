@@ -44,34 +44,47 @@ export async function GET(req: Request) {
 
     let totalTemp = 0;
     let tempCount = 0;
-    let occupiedCount = 0;
-    let validOccupancyCount = 0;
     let totalNoise = 0;
     let noiseCount = 0;
+    
+    let healthyEnvCount = 0;
+    let envCheckCount = 0;
+
+    const activeRoomsSet = new Set<string>();
 
     // Aggregate by Room
     const roomStats: Record<string, { rName: string; occupied: number; totalOcc: number; }> = {};
     
+    // Time Series Aggregation
+    const timeSeries: Record<string, { tempSum: number, tempCount: number, noiseSum: number, noiseCount: number, occupiedRooms: Set<string> }> = {};
+
     // Initialize stats for ALL rooms so they appear on the chart
     rooms?.forEach(r => {
       roomStats[r.room_id] = { rName: r.name || 'Unknown Room', occupied: 0, totalOcc: 0 };
     });
 
     readings?.forEach((r) => {
-      if (typeof r.temp === "number") {
-         totalTemp += r.temp;
+      if (r.room_id) activeRoomsSet.add(r.room_id);
+
+      const parsedTemp = typeof r.temp === "number" ? r.temp : parseFloat(r.temp);
+      const tempValid = !isNaN(parsedTemp) && parsedTemp != null;
+      if (tempValid) {
+         totalTemp += parsedTemp;
          tempCount++;
-      } else if (r.temp != null) {
-         const parsed = parseFloat(r.temp);
-         if (!isNaN(parsed)) { totalTemp += parsed; tempCount++; }
       }
-      if (r.noise_level != null) {
-         const noise = typeof r.noise_level === "number" ? r.noise_level : parseFloat(r.noise_level);
-         if (!isNaN(noise)) { totalNoise += noise; noiseCount++; }
+      
+      const parsedNoise = typeof r.noise_level === "number" ? r.noise_level : parseFloat(r.noise_level);
+      const noiseValid = !isNaN(parsedNoise) && parsedNoise != null;
+      if (noiseValid) {
+         totalNoise += parsedNoise;
+         noiseCount++;
       }
-      if (r.is_occupied !== null) {
-         if (r.is_occupied) occupiedCount++;
-         validOccupancyCount++;
+      
+      if (tempValid && noiseValid) {
+         envCheckCount++;
+         if (parsedTemp >= 20 && parsedTemp <= 25 && parsedNoise <= 60) {
+            healthyEnvCount++;
+         }
       }
 
       // Group by room
@@ -81,10 +94,35 @@ export async function GET(req: Request) {
            roomStats[r.room_id].totalOcc++;
         }
       }
+      
+      // Time Series
+      const date = new Date(r.created_at);
+      let timeKey = "";
+      if (timeRange === "24h") {
+         timeKey = `${date.getHours().toString().padStart(2, '0')}:00`;
+      } else {
+         timeKey = `${date.getMonth() + 1}/${date.getDate()}`;
+      }
+      
+      if (!timeSeries[timeKey]) {
+         timeSeries[timeKey] = { tempSum: 0, tempCount: 0, noiseSum: 0, noiseCount: 0, occupiedRooms: new Set() };
+      }
+      
+      if (tempValid) {
+         timeSeries[timeKey].tempSum += parsedTemp;
+         timeSeries[timeKey].tempCount++;
+      }
+      if (noiseValid) {
+         timeSeries[timeKey].noiseSum += parsedNoise;
+         timeSeries[timeKey].noiseCount++;
+      }
+      if (r.is_occupied) {
+         timeSeries[timeKey].occupiedRooms.add(r.room_id);
+      }
     });
 
     const avgTemperature = tempCount > 0 ? +(totalTemp / tempCount).toFixed(1) : 0;
-    const occupancyRate = validOccupancyCount > 0 ? +((occupiedCount / validOccupancyCount) * 100).toFixed(1) : 0;
+    const envHealthScore = envCheckCount > 0 ? +((healthyEnvCount / envCheckCount) * 100).toFixed(1) : 0;
     const avgNoiseLevel = noiseCount > 0 ? +(totalNoise / noiseCount).toFixed(1) : 0;
 
     const roomStatsArr = Object.values(roomStats)
@@ -92,14 +130,33 @@ export async function GET(req: Request) {
         name: r.rName,
         occupancy: r.totalOcc > 0 ? +((r.occupied / r.totalOcc) * 100).toFixed(1) : 0
       }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .sort((a, b) => b.occupancy - a.occupancy);
+
+    let peakOccupancy = 0;
+    // Map timeSeries to array
+    const trendsArr = Object.entries(timeSeries).map(([time, data]) => {
+      const peak = data.occupiedRooms.size;
+      if (peak > peakOccupancy) peakOccupancy = peak;
+      return {
+        time,
+        temp: data.tempCount > 0 ? +(data.tempSum / data.tempCount).toFixed(1) : null,
+        noise: data.noiseCount > 0 ? +(data.noiseSum / data.noiseCount).toFixed(1) : null,
+        peakOccupancy: peak
+      };
+    });
+    
+    // Sort trends chronologically
+    trendsArr.reverse();
 
     return NextResponse.json({
        avgTemperature,
-       occupancyRate,
+       envHealthScore,
        avgNoiseLevel,
        totalRoomsMonitored: rooms?.length || 0,
-       roomStats: roomStatsArr
+       activeRoomsCount: activeRoomsSet.size,
+       peakOccupancy,
+       roomStats: roomStatsArr,
+       trends: trendsArr
     });
 
   } catch {
