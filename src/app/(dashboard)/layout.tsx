@@ -2,6 +2,7 @@
 
 import Sidebar from "@/components/Sidebar";
 import TopNavbar from "@/components/TopNavbar";
+import NotificationProvider from "@/components/NotificationProvider";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -45,13 +46,15 @@ export default function AppLayout({
   }
 
   return (
-    <div className={`app-layout ${collapsed ? "sidebar-is-collapsed" : ""}`}>
-      <Sidebar />
-      <div className="main-wrapper">
-        <TopNavbar />
-        <main className="main-content">{children}</main>
+    <NotificationProvider>
+      <div className={`app-layout ${collapsed ? "sidebar-is-collapsed" : ""}`}>
+        <Sidebar />
+        <div className="main-wrapper">
+          <TopNavbar />
+          <main className="main-content">{children}</main>
+        </div>
       </div>
-    </div>
+    </NotificationProvider>
   );
 }
 

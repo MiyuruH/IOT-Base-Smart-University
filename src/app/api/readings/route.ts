@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createReading, getReadings } from "@/lib/services/sensors";
 import { getRecentLiveReadings } from "@/lib/services/latestSensorData";
+import { evaluateRoomReading } from "@/lib/services/alerts";
 import { requireAuth } from "@/lib/authGuard";
 
 export async function GET(req: Request) {
@@ -32,6 +33,19 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const reading = await createReading(body);
+
+    if (body.room_id) {
+      await evaluateRoomReading({
+        room_id: body.room_id,
+        node_id: body.node_id ?? null,
+        temperature_c: body.temperature_c ?? null,
+        noise_db: body.noise_db ?? null,
+        light_lux: body.light_lux ?? null,
+        is_occupied: body.occupancy_detected ?? body.pir_motion ?? null,
+        ghost_cooling_suspected: body.ghost_cooling_suspected ?? null,
+      });
+    }
+
     return NextResponse.json(reading, { status: 201 });
   } catch {
     return NextResponse.json(

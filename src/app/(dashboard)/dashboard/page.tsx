@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import StatCard from "@/components/StatCard";
 import { useRealtime } from "@/hooks/useRealtime";
+import { Bell, Building2, DoorOpen, Radio, Users } from "lucide-react";
 
 interface DashboardStats {
   buildings: number;
@@ -129,35 +130,35 @@ export default function DashboardPage() {
 
       <div className="card-grid" style={{ marginBottom: 32 }}>
         <StatCard
-          icon="🏢"
+          icon={<Building2 size={22} />}
           label="Total Buildings"
           value={stats.buildings}
           sub="Registered buildings"
           color="blue"
         />
         <StatCard
-          icon="🚪"
+          icon={<DoorOpen size={22} />}
           label="Total Rooms"
           value={stats.rooms}
           sub="Monitored rooms"
           color="green"
         />
         <StatCard
-          icon="👥"
+          icon={<Users size={22} />}
           label="Occupied Rooms"
           value={stats.occupiedRooms}
           sub="Currently in use"
           color="purple"
         />
         <StatCard
-          icon="📡"
+          icon={<Radio size={22} />}
           label="Active Sensors"
           value={stats.sensors}
           sub="Connected nodes"
           color="amber"
         />
         <StatCard
-          icon="🔔"
+          icon={<Bell size={22} />}
           label="Active Alerts"
           value={stats.activeAlerts}
           sub="Require attention"

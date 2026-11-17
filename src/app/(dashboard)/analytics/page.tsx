@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import StatCard from "@/components/StatCard";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, AreaChart, Area } from "recharts";
 import { useRealtime } from "@/hooks/useRealtime";
+import { Building2, Leaf, Thermometer, Users } from "lucide-react";
 
 interface RoomStat {
   name: string;
@@ -103,28 +104,28 @@ export default function AnalyticsPage() {
 
       <div className="card-grid" style={{ marginBottom: 32 }}>
         <StatCard
-          icon="👥"
+          icon={<Users size={22} />}
           label="Peak Campus Occupancy"
           value={data?.peakOccupancy || 0}
           sub="Max rooms used simultaneously"
           color="purple"
         />
         <StatCard
-          icon="🌿"
+          icon={<Leaf size={22} />}
           label="Environment Health"
           value={data?.envHealthScore != null ? `${data.envHealthScore}%` : "—"}
           sub="Optimal temp & noise levels"
           color="green"
         />
         <StatCard
-          icon="🌡"
+          icon={<Thermometer size={22} />}
           label="Avg Campus Temp"
           value={data?.avgTemperature ? `${data.avgTemperature}°C` : "—"}
           sub="Based on recent readings"
           color="blue"
         />
         <StatCard
-          icon="🏢"
+          icon={<Building2 size={22} />}
           label="Active Rooms"
           value={data ? `${data.activeRoomsCount} / ${data.totalRoomsMonitored}` : "0"}
           sub="Rooms supplying data"

@@ -2,6 +2,20 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  Bell,
+  Lock,
+  Save,
+  Settings,
+  TriangleAlert,
+  User,
+  Volume2,
+  type LucideIcon,
+} from "lucide-react";
+import {
+  useNotifications,
+  type AlertSettingsConfig,
+} from "@/components/NotificationProvider";
 
 interface UserProfile {
   uid: string;
@@ -10,17 +24,37 @@ interface UserProfile {
   role: string;
 }
 
-const tabs = [
-  { id: "profile", label: "Profile", icon: "👤" },
-  { id: "password", label: "Change Password", icon: "🔒" },
-  { id: "preferences", label: "Preferences", icon: "⚙️" },
-  { id: "danger", label: "Danger Zone", icon: "⚠️" },
+const tabs: { id: string; label: string; icon: LucideIcon }[] = [
+  { id: "profile", label: "Profile", icon: User },
+  { id: "password", label: "Change Password", icon: Lock },
+  { id: "preferences", label: "Preferences", icon: Settings },
+  { id: "danger", label: "Danger Zone", icon: TriangleAlert },
 ];
 
 export default function SettingsPage() {
   const router = useRouter();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [activeTab, setActiveTab] = useState("profile");
+  const {
+    alertSettings,
+    soundEnabled,
+    toastEnabled,
+    desktopEnabled,
+    setSoundEnabled,
+    setToastEnabled,
+    setDesktopEnabled,
+    updateAlertSettings,
+    playAlertSound,
+  } = useNotifications();
+
+  const [thresholdForm, setThresholdForm] =
+    useState<AlertSettingsConfig>(alertSettings);
+  const [thresholdSaving, setThresholdSaving] = useState(false);
+  const [thresholdMsg, setThresholdMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    setThresholdForm(alertSettings);
+  }, [alertSettings]);
 
   // Change password state
   const [currentPassword, setCurrentPassword] = useState("");
@@ -141,16 +175,21 @@ export default function SettingsPage() {
 
       {/* ── Horizontal Tabs ── */}
       <div className="settings-tabs">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            className={`settings-tab ${activeTab === tab.id ? "settings-tab-active" : ""}`}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            <span className="settings-tab-icon">{tab.icon}</span>
-            {tab.label}
-          </button>
-        ))}
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          return (
+            <button
+              key={tab.id}
+              className={`settings-tab ${activeTab === tab.id ? "settings-tab-active" : ""}`}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              <span className="settings-tab-icon">
+                <Icon size={16} />
+              </span>
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* ── Tab Content ── */}
@@ -309,23 +348,342 @@ export default function SettingsPage() {
         {activeTab === "preferences" && (
           <div className="settings-section">
             <div className="settings-section-header">
-              <h3>Preferences</h3>
-              <p>System behavior and appearance</p>
+              <h3>Notification &amp; System Preferences</h3>
+              <p>Configure real-time anomaly alerts, audio chimes, and display</p>
             </div>
             <div className="settings-section-body">
               <div className="settings-pref-row">
                 <div>
                   <div className="settings-pref-title">Global Alerts Sound</div>
-                  <div className="settings-pref-desc">Play a sound when a high-severity anomaly occurs</div>
+                  <div className="settings-pref-desc">
+                    Play an audio chime when a new campus anomaly occurs
+                  </div>
                 </div>
-                <button className="btn btn-ghost btn-sm" disabled style={{ opacity: 0.5 }}>Enabled</button>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => playAlertSound("HIGH")}
+                    title="Preview critical alert sound"
+                  >
+                    <Volume2 size={14} />
+                    Test Sound
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${
+                      soundEnabled ? "btn-primary" : "btn-ghost"
+                    }`}
+                    onClick={() => setSoundEnabled(!soundEnabled)}
+                  >
+                    {soundEnabled ? "Enabled" : "Muted"}
+                  </button>
+                </div>
               </div>
+
+              <div className="settings-pref-row">
+                <div>
+                  <div className="settings-pref-title">
+                    Live Popup Toast Notifications
+                  </div>
+                  <div className="settings-pref-desc">
+                    Show floating real-time alert cards with quick actions when
+                    thresholds are breached
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${
+                    toastEnabled ? "btn-primary" : "btn-ghost"
+                  }`}
+                  onClick={() => setToastEnabled(!toastEnabled)}
+                >
+                  {toastEnabled ? "Enabled" : "Disabled"}
+                </button>
+              </div>
+
+              <div className="settings-pref-row">
+                <div>
+                  <div className="settings-pref-title">
+                    Browser Desktop Notifications
+                  </div>
+                  <div className="settings-pref-desc">
+                    Send native OS notifications when NavSense is running in a
+                    background tab
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${
+                    desktopEnabled ? "btn-primary" : "btn-ghost"
+                  }`}
+                  onClick={() => setDesktopEnabled(!desktopEnabled)}
+                >
+                  <Bell size={14} />
+                  {desktopEnabled ? "Enabled" : "Enable"}
+                </button>
+              </div>
+
               <div className="settings-pref-row">
                 <div>
                   <div className="settings-pref-title">Theme Mode</div>
-                  <div className="settings-pref-desc">Currently locked to immersive dark mode</div>
+                  <div className="settings-pref-desc">
+                    Currently locked to immersive dark mode
+                  </div>
                 </div>
                 <span className="badge blue">Dark</span>
+              </div>
+
+              {/* Database Threshold Settings Section inside Preferences */}
+              <div
+                style={{
+                  marginTop: 24,
+                  paddingTop: 20,
+                  borderTop: "1px solid var(--border-color)",
+                }}
+              >
+                <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>
+                  Database Alert Threshold Levels
+                </h4>
+                <p
+                  style={{
+                    fontSize: 12,
+                    color: "var(--text-muted)",
+                    marginBottom: 16,
+                  }}
+                >
+                  Adjust the sensor thresholds stored in Supabase for automatic
+                  campus anomaly detection
+                </p>
+
+                {thresholdMsg && (
+                  <div className="settings-msg settings-msg-success">
+                    {thresholdMsg}
+                  </div>
+                )}
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 14,
+                    marginBottom: 16,
+                  }}
+                >
+                  <div>
+                    <label className="form-label">
+                      High Temperature (Warning / Critical)
+                    </label>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <div className="unit-input-wrap" title="Warning Temperature (°C)">
+                        <input
+                          type="number"
+                          step="0.5"
+                          value={thresholdForm.temp_warning_c}
+                          onChange={(e) =>
+                            setThresholdForm({
+                              ...thresholdForm,
+                              temp_warning_c: Number(e.target.value),
+                            })
+                          }
+                          placeholder="Warn"
+                        />
+                        <span className="unit-input-badge">°C</span>
+                      </div>
+                      <div className="unit-input-wrap" title="Critical Temperature (°C)">
+                        <input
+                          type="number"
+                          step="0.5"
+                          value={thresholdForm.temp_critical_c}
+                          onChange={(e) =>
+                            setThresholdForm({
+                              ...thresholdForm,
+                              temp_critical_c: Number(e.target.value),
+                            })
+                          }
+                          placeholder="Crit"
+                        />
+                        <span className="unit-input-badge">°C</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="form-label">
+                      Ghost Cooling Vacant Temp (Below)
+                    </label>
+                    <div className="unit-input-wrap">
+                      <input
+                        type="number"
+                        step="0.5"
+                        value={thresholdForm.ghost_cooling_temp_c}
+                        onChange={(e) =>
+                          setThresholdForm({
+                            ...thresholdForm,
+                            ghost_cooling_temp_c: Number(e.target.value),
+                          })
+                        }
+                      />
+                      <span className="unit-input-badge">°C</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="form-label">
+                      Acoustic Noise (Warning / Critical)
+                    </label>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <div className="unit-input-wrap" title="Warning Noise (dB)">
+                        <input
+                          type="number"
+                          value={thresholdForm.noise_warning_db}
+                          onChange={(e) =>
+                            setThresholdForm({
+                              ...thresholdForm,
+                              noise_warning_db: Number(e.target.value),
+                            })
+                          }
+                        />
+                        <span className="unit-input-badge">dB</span>
+                      </div>
+                      <div className="unit-input-wrap" title="Critical Noise (dB)">
+                        <input
+                          type="number"
+                          value={thresholdForm.noise_critical_db}
+                          onChange={(e) =>
+                            setThresholdForm({
+                              ...thresholdForm,
+                              noise_critical_db: Number(e.target.value),
+                            })
+                          }
+                        />
+                        <span className="unit-input-badge">dB</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="form-label">
+                      Humidity (Warning / Critical)
+                    </label>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <div className="unit-input-wrap" title="Warning Humidity (%)">
+                        <input
+                          type="number"
+                          value={thresholdForm.humidity_warning_pct}
+                          onChange={(e) =>
+                            setThresholdForm({
+                              ...thresholdForm,
+                              humidity_warning_pct: Number(e.target.value),
+                            })
+                          }
+                        />
+                        <span className="unit-input-badge">%</span>
+                      </div>
+                      <div className="unit-input-wrap" title="Critical Humidity (%)">
+                        <input
+                          type="number"
+                          value={thresholdForm.humidity_critical_pct}
+                          onChange={(e) =>
+                            setThresholdForm({
+                              ...thresholdForm,
+                              humidity_critical_pct: Number(e.target.value),
+                            })
+                          }
+                        />
+                        <span className="unit-input-badge">%</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="form-label">
+                      Sensor Offline Timeout (Warning / Critical)
+                    </label>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <div className="unit-input-wrap" title="Warning Offline Timeout (min)">
+                        <input
+                          type="number"
+                          value={thresholdForm.offline_warning_min}
+                          onChange={(e) =>
+                            setThresholdForm({
+                              ...thresholdForm,
+                              offline_warning_min: Number(e.target.value),
+                            })
+                          }
+                        />
+                        <span className="unit-input-badge">min</span>
+                      </div>
+                      <div className="unit-input-wrap" title="Critical Offline Timeout (min)">
+                        <input
+                          type="number"
+                          value={thresholdForm.offline_critical_min}
+                          onChange={(e) =>
+                            setThresholdForm({
+                              ...thresholdForm,
+                              offline_critical_min: Number(e.target.value),
+                            })
+                          }
+                        />
+                        <span className="unit-input-badge">min</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      paddingTop: 22,
+                    }}
+                  >
+                    <label
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        fontSize: 13,
+                        cursor: "pointer",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={thresholdForm.auto_resolve}
+                        onChange={(e) =>
+                          setThresholdForm({
+                            ...thresholdForm,
+                            auto_resolve: e.target.checked,
+                          })
+                        }
+                      />
+                      Auto-resolve alerts when normal
+                    </label>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  disabled={thresholdSaving}
+                  onClick={async () => {
+                    setThresholdSaving(true);
+                    setThresholdMsg(null);
+                    try {
+                      await updateAlertSettings(thresholdForm);
+                      setThresholdMsg(
+                        "Threshold settings saved to database!"
+                      );
+                      setTimeout(() => setThresholdMsg(null), 3000);
+                    } finally {
+                      setThresholdSaving(false);
+                    }
+                  }}
+                >
+                  <Save size={14} />
+                  {thresholdSaving
+                    ? "Saving to Database..."
+                    : "Save Thresholds to Database"}
+                </button>
               </div>
             </div>
           </div>

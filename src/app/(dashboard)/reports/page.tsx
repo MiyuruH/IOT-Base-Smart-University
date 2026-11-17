@@ -1,6 +1,19 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, type ReactNode } from "react";
+import {
+  Bell,
+  Building2,
+  DoorOpen,
+  Download,
+  Droplets,
+  Ghost,
+  Loader2,
+  Radio,
+  Thermometer,
+  Volume2,
+  type LucideIcon,
+} from "lucide-react";
 
 /* ── Types ── */
 interface Building {
@@ -49,11 +62,11 @@ interface SensorReport {
 
 type ReportCategory = "buildings" | "rooms" | "alerts" | "sensors";
 
-const CATEGORIES: { key: ReportCategory; label: string; icon: string; desc: string }[] = [
-  { key: "buildings", label: "Buildings", icon: "🏢", desc: "Building-wise overview with floor & room counts" },
-  { key: "rooms", label: "Rooms", icon: "🚪", desc: "Room-wise occupancy, temperature & sensor data" },
-  { key: "alerts", label: "Alerts & Anomalies", icon: "🔔", desc: "Active and resolved anomaly history" },
-  { key: "sensors", label: "Sensor Nodes", icon: "📡", desc: "IoT device inventory and health status" },
+const CATEGORIES: { key: ReportCategory; label: string; icon: LucideIcon; desc: string }[] = [
+  { key: "buildings", label: "Buildings", icon: Building2, desc: "Building-wise overview with floor & room counts" },
+  { key: "rooms", label: "Rooms", icon: DoorOpen, desc: "Room-wise occupancy, temperature & sensor data" },
+  { key: "alerts", label: "Alerts & Anomalies", icon: Bell, desc: "Active and resolved anomaly history" },
+  { key: "sensors", label: "Sensor Nodes", icon: Radio, desc: "IoT device inventory and health status" },
 ];
 
 const TIME_RANGES = [
@@ -177,16 +190,21 @@ export default function ReportsPage() {
 
       {/* ── Category Tabs ── */}
       <div className="report-tabs">
-        {CATEGORIES.map((cat) => (
-          <button
-            key={cat.key}
-            className={`report-tab ${activeCategory === cat.key ? "report-tab-active" : ""}`}
-            onClick={() => setActiveCategory(cat.key)}
-          >
-            <span className="report-tab-icon">{cat.icon}</span>
-            <span className="report-tab-label">{cat.label}</span>
-          </button>
-        ))}
+        {CATEGORIES.map((cat) => {
+          const Icon = cat.icon;
+          return (
+            <button
+              key={cat.key}
+              className={`report-tab ${activeCategory === cat.key ? "report-tab-active" : ""}`}
+              onClick={() => setActiveCategory(cat.key)}
+            >
+              <span className="report-tab-icon">
+                <Icon size={16} />
+              </span>
+              <span className="report-tab-label">{cat.label}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* ── Active category description ── */}
@@ -250,7 +268,12 @@ export default function ReportsPage() {
             onClick={() => handleDownload("csv")}
             disabled={downloadingFormat === "csv" || loading}
           >
-            {downloadingFormat === "csv" ? "⏳" : "📥"} CSV
+            {downloadingFormat === "csv" ? (
+              <Loader2 size={14} style={{ animation: "spin 0.8s linear infinite" }} />
+            ) : (
+              <Download size={14} />
+            )}
+            CSV
           </button>
         </div>
       </div>
@@ -278,7 +301,13 @@ export default function ReportsPage() {
 function renderBuildingsReport(data: any, formatDate: (d: string) => string) {
   const buildings: Building[] = data?.buildings || [];
   if (buildings.length === 0) {
-    return <EmptyReport icon="🏢" title="No buildings found" subtitle="Adjust your filters or add buildings to the system." />;
+    return (
+      <EmptyReport
+        icon={<Building2 size={48} strokeWidth={1.5} />}
+        title="No buildings found"
+        subtitle="Adjust your filters or add buildings to the system."
+      />
+    );
   }
 
   return (
@@ -307,7 +336,9 @@ function renderBuildingsReport(data: any, formatDate: (d: string) => string) {
       {buildings.map((b, i) => (
         <div key={b.building_id} className="report-section" style={{ animationDelay: `${i * 0.05}s` }}>
           <div className="report-section-header">
-            <div className="report-section-icon">🏢</div>
+            <div className="report-section-icon">
+              <Building2 size={18} />
+            </div>
             <div>
               <h3>{b.name || "Unnamed Building"}</h3>
               <p>{b.address || "No address"}</p>
@@ -351,7 +382,13 @@ function renderBuildingsReport(data: any, formatDate: (d: string) => string) {
 function renderRoomsReport(data: any, getBuildingName: (id: string) => string) {
   const rooms: RoomReport[] = data?.rooms || [];
   if (rooms.length === 0) {
-    return <EmptyReport icon="🚪" title="No rooms found" subtitle="Adjust your filters or add rooms to the system." />;
+    return (
+      <EmptyReport
+        icon={<DoorOpen size={48} strokeWidth={1.5} />}
+        title="No rooms found"
+        subtitle="Adjust your filters or add rooms to the system."
+      />
+    );
   }
 
   // Group rooms by building
@@ -408,7 +445,9 @@ function renderRoomsReport(data: any, getBuildingName: (id: string) => string) {
       {Object.entries(grouped).map(([buildingId, bRooms], i) => (
         <div key={buildingId} className="report-section" style={{ animationDelay: `${i * 0.05}s` }}>
           <div className="report-section-header">
-            <div className="report-section-icon">🏢</div>
+            <div className="report-section-icon">
+              <Building2 size={18} />
+            </div>
             <div>
               <h3>{getBuildingName(buildingId)}</h3>
               <p>{bRooms.length} room{bRooms.length !== 1 ? "s" : ""}</p>
@@ -486,7 +525,13 @@ function renderRoomsReport(data: any, getBuildingName: (id: string) => string) {
 function renderAlertsReport(data: any, formatDateTime: (d: string) => string) {
   const alerts: AlertReport[] = data?.alerts || [];
   if (alerts.length === 0) {
-    return <EmptyReport icon="🔔" title="No alerts found" subtitle="No anomalies match your selected filters." />;
+    return (
+      <EmptyReport
+        icon={<Bell size={48} strokeWidth={1.5} />}
+        title="No alerts found"
+        subtitle="No anomalies match your selected filters."
+      />
+    );
   }
 
   const active = alerts.filter(a => a.is_active).length;
@@ -532,7 +577,36 @@ function renderAlertsReport(data: any, formatDateTime: (d: string) => string) {
               {alerts.map((a) => (
                 <tr key={a.anomaly_id}>
                   <td style={{ fontWeight: 500, color: "var(--text-primary)" }}>
-                    {a.type === "GHOST_COOLING" ? "👻 Ghost Cooling" : a.type === "SENSOR_OFFLINE" ? "📡 Sensor Offline" : a.type === "HIGH_TEMP" ? "🌡 High Temp" : a.type}
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      {a.type === "GHOST_COOLING" ? (
+                        <>
+                          <Ghost size={15} />
+                          Ghost Cooling
+                        </>
+                      ) : a.type === "SENSOR_OFFLINE" ? (
+                        <>
+                          <Radio size={15} />
+                          Sensor Offline
+                        </>
+                      ) : a.type === "HIGH_TEMP" ? (
+                        <>
+                          <Thermometer size={15} />
+                          High Temp
+                        </>
+                      ) : a.type === "HIGH_NOISE" ? (
+                        <>
+                          <Volume2 size={15} />
+                          High Noise
+                        </>
+                      ) : a.type === "HIGH_HUMIDITY" ? (
+                        <>
+                          <Droplets size={15} />
+                          High Humidity
+                        </>
+                      ) : (
+                        a.type
+                      )}
+                    </span>
                   </td>
                   <td>
                     <span className={`badge ${a.severity === "HIGH" ? "red" : a.severity === "MEDIUM" ? "amber" : "blue"}`}>
@@ -565,7 +639,13 @@ function renderAlertsReport(data: any, formatDateTime: (d: string) => string) {
 function renderSensorsReport(data: any, formatDateTime: (d: string) => string) {
   const sensors: SensorReport[] = data?.sensors || [];
   if (sensors.length === 0) {
-    return <EmptyReport icon="📡" title="No sensors found" subtitle="No sensor nodes match your selected filters." />;
+    return (
+      <EmptyReport
+        icon={<Radio size={48} strokeWidth={1.5} />}
+        title="No sensors found"
+        subtitle="No sensor nodes match your selected filters."
+      />
+    );
   }
 
   const activeSensors = sensors.filter(s => s.is_active).length;
@@ -627,7 +707,7 @@ function renderSensorsReport(data: any, formatDateTime: (d: string) => string) {
 }
 
 /* ── Empty State Component ── */
-function EmptyReport({ icon, title, subtitle }: { icon: string; title: string; subtitle: string }) {
+function EmptyReport({ icon, title, subtitle }: { icon: ReactNode; title: string; subtitle: string }) {
   return (
     <div className="empty-state" style={{ padding: 80 }}>
       <div className="empty-state-icon">{icon}</div>

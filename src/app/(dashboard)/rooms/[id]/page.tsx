@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
 import IoTDashboard from "@/components/IoTDashboard";
+import { ArrowLeft, Check, Copy, TriangleAlert } from "lucide-react";
 
 interface RoomDetails {
   room_id: string;
@@ -64,7 +65,9 @@ export default function RoomDetailsPage({
   if (error || !room) {
     return (
       <div className="empty-state">
-        <div className="empty-state-icon">⚠️</div>
+        <div className="empty-state-icon">
+          <TriangleAlert size={48} strokeWidth={1.5} />
+        </div>
         <h3>{error || "Room Not Found"}</h3>
         <button className="btn btn-outline" onClick={() => router.push("/rooms")} style={{ marginTop: 16 }}>
           Back to Rooms
@@ -78,7 +81,7 @@ export default function RoomDetailsPage({
       {/* Header */}
       <div className="page-header" style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
         <button className="btn btn-ghost" onClick={() => router.push("/rooms")} style={{ padding: 8, marginTop: 2 }} title="Back to Rooms">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12" /><polyline points="12 19 5 12 12 5" /></svg>
+          <ArrowLeft size={20} />
         </button>
         <div style={{ flex: 1 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
@@ -125,9 +128,9 @@ export default function RoomDetailsPage({
             >
               ID: {room.room_id}
               {copied ? (
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                <Check size={14} color="#10b981" />
               ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                <Copy size={14} />
               )}
             </button>
           </div>

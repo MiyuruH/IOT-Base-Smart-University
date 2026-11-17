@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import AppSplashGate from "@/components/AppSplashGate";
 
 export const metadata: Metadata = {
   title: "NavSense — Smart Campus Monitoring",
@@ -15,7 +16,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       {/* This tells Next.js to safely ignore any minor attribute changes done to the body tag by browser extensions */}
-      <body suppressHydrationWarning>{children}</body>
+      <body suppressHydrationWarning>
+        <AppSplashGate />
+        {children}
+      </body>
     </html>
   );
 }

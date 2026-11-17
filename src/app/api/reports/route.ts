@@ -5,6 +5,11 @@ import {
   buildLiveRoomStatus,
   getLatestByRoom,
 } from "@/lib/services/latestSensorData";
+import {
+  isSystemSettingsRow,
+  normalizeAnomaly,
+  syncCampusAnomalies,
+} from "@/lib/services/alerts";
 
 export async function GET(req: Request) {
   const auth = requireAuth(req);
@@ -78,6 +83,7 @@ export async function GET(req: Request) {
 
     // ----- ALERTS REPORT -----
     if (category === "alerts" || category === "all") {
+      await syncCampusAnomalies();
       let alertsQuery = supabase
         .from("anomalies")
         .select("*, rooms(name, code)")
@@ -94,7 +100,9 @@ export async function GET(req: Request) {
       if (timeFilter) alertsQuery = alertsQuery.gte("start_at", timeFilter);
       const { data, error } = await alertsQuery;
       if (error) throw error;
-      alerts = data;
+      alerts = (data || [])
+        .filter((r) => !isSystemSettingsRow(r))
+        .map(normalizeAnomaly);
     }
 
     // ----- SENSORS REPORT -----

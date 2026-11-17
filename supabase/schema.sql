@@ -130,7 +130,7 @@ CREATE TABLE room_status (
 -- =========================
 CREATE TABLE anomalies (
   anomaly_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  type TEXT CHECK (type IN ('GHOST_COOLING','SENSOR_OFFLINE','HIGH_TEMP')),
+  type TEXT CHECK (type IN ('GHOST_COOLING','SENSOR_OFFLINE','HIGH_TEMP','HIGH_NOISE','HIGH_HUMIDITY')),
   room_id UUID REFERENCES rooms(room_id) ON DELETE CASCADE,
   node_id TEXT REFERENCES sensor_nodes(node_id) ON DELETE CASCADE,
   severity TEXT CHECK (severity IN ('LOW','MEDIUM','HIGH')),
@@ -238,8 +238,9 @@ create table sensor_readings (
   light_status boolean
 );
 
--- Turn on Realtime for this table
+-- Turn on Realtime for sensor_readings and anomalies tables
 alter publication supabase_realtime add table sensor_readings;
+alter publication supabase_realtime add table anomalies;
 
 
 
@@ -249,4 +250,16 @@ ON sensor_readings FOR SELECT USING (true);
 
 -- (Optional) Make sure RLS is actually enabled
 ALTER TABLE sensor_readings ENABLE ROW LEVEL SECURITY;
+
+-- =========================
+-- ALERT & NOTIFICATION SETTINGS
+-- =========================
+CREATE TABLE IF NOT EXISTS alert_settings (
+  setting_key TEXT PRIMARY KEY DEFAULT 'global',
+  config JSONB NOT NULL DEFAULT '{}'::jsonb,
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE alert_settings ENABLE ROW LEVEL SECURITY;
+
 

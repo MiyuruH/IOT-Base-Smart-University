@@ -3,16 +3,35 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import {
+  Bell,
+  Building2,
+  ChevronRight,
+  DoorOpen,
+  FileText,
+  LayoutDashboard,
+  LogOut,
+  Settings,
+  TrendingUp,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
+import { useNotifications } from "@/components/NotificationProvider";
 
-const navItems = [
-  { href: "/dashboard", label: "Dashboard", icon: "📊" },
-  { href: "/buildings", label: "Buildings", icon: "🏢" },
-  { href: "/rooms", label: "Rooms", icon: "🚪" },
-  { href: "/alerts", label: "Alerts", icon: "🔔" },
-  { href: "/analytics", label: "Analytics", icon: "📈" },
-  { href: "/reports", label: "Reports", icon: "📄" },
-  { href: "/users", label: "User Management", icon: "👥", superAdminOnly: true },
-  { href: "/settings", label: "Settings", icon: "⚙️" },
+const navItems: {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  superAdminOnly?: boolean;
+}[] = [
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/buildings", label: "Buildings", icon: Building2 },
+  { href: "/rooms", label: "Rooms", icon: DoorOpen },
+  { href: "/alerts", label: "Alerts", icon: Bell },
+  { href: "/analytics", label: "Analytics", icon: TrendingUp },
+  { href: "/reports", label: "Reports", icon: FileText },
+  { href: "/users", label: "User Management", icon: Users, superAdminOnly: true },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export default function Sidebar() {
@@ -20,6 +39,7 @@ export default function Sidebar() {
   const router = useRouter();
   const [role, setRole] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
+  const { activeCount, highSeverityCount } = useNotifications();
 
   useEffect(() => {
     const userStr = localStorage.getItem("user");
@@ -65,20 +85,11 @@ export default function Sidebar() {
         onClick={toggleCollapse}
         title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+        <ChevronRight
+          size={14}
+          strokeWidth={2.5}
           style={{ transform: collapsed ? "rotate(0deg)" : "rotate(180deg)", transition: "transform 0.3s ease" }}
-        >
-          <polyline points="9 18 15 12 9 6" />
-        </svg>
+        />
       </button>
 
       <div className="sidebar-logo">
@@ -89,19 +100,46 @@ export default function Sidebar() {
       {!collapsed && <div className="sidebar-section-label">Main Menu</div>}
 
       <nav className="sidebar-nav">
-        {filteredNav.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={`sidebar-link ${
-              pathname.startsWith(item.href) ? "active" : ""
-            }`}
-            title={collapsed ? item.label : undefined}
-          >
-            <span className="sidebar-link-icon">{item.icon}</span>
-            {!collapsed && item.label}
-          </Link>
-        ))}
+        {filteredNav.map((item) => {
+          const Icon = item.icon;
+          const isAlertsItem = item.href === "/alerts";
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`sidebar-link ${
+                pathname.startsWith(item.href) ? "active" : ""
+              }`}
+              style={{ position: "relative" }}
+              title={collapsed ? item.label : undefined}
+            >
+              <span className="sidebar-link-icon" style={{ position: "relative" }}>
+                <Icon size={20} />
+                {collapsed && isAlertsItem && activeCount > 0 && (
+                  <span
+                    className={`sidebar-alert-dot ${
+                      highSeverityCount > 0 ? "critical" : ""
+                    }`}
+                  />
+                )}
+              </span>
+              {!collapsed && (
+                <>
+                  <span style={{ flex: 1 }}>{item.label}</span>
+                  {isAlertsItem && activeCount > 0 && (
+                    <span
+                      className={`sidebar-alert-badge ${
+                        highSeverityCount > 0 ? "critical" : ""
+                      }`}
+                    >
+                      {activeCount > 99 ? "99+" : activeCount}
+                    </span>
+                  )}
+                </>
+              )}
+            </Link>
+          );
+        })}
       </nav>
 
       {/* Logout Button */}
@@ -111,7 +149,9 @@ export default function Sidebar() {
           onClick={handleLogout}
           title={collapsed ? "Logout" : undefined}
         >
-          <span className="sidebar-link-icon">🚪</span>
+          <span className="sidebar-link-icon">
+            <LogOut size={20} />
+          </span>
           {!collapsed && "Logout"}
         </button>
       </div>

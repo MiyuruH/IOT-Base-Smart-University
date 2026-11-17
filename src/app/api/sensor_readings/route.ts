@@ -1,37 +1,33 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { evaluateRoomReading } from "@/lib/services/alerts";
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    
-    // We expect the ESP32 to send:
-    // {
-    //   "room_id": "Rajarata_Uni/Building_A/Room_101",
-    //   "temp": 28.5,
-    //   "humidity": 60.2,
-    //   "noise_level": 55.4,
-    //   "is_occupied": true,
-    //   "light_status": true
-    // }
-    
+
     const { room_id, temp, humidity, noise_level, is_occupied, light_status } = body;
 
     if (!room_id) {
-      return NextResponse.json({ error: "room_id is required from the ESP32" }, { status: 400 });
+      return NextResponse.json(
+        { error: "room_id is required from the ESP32" },
+        { status: 400 }
+      );
     }
 
     // Insert reading into tracking table without checking for user auth (service role used)
     const { data, error } = await supabase
       .from("sensor_readings")
-      .insert([{
-        room_id,
-        temp,
-        humidity,
-        noise_level,
-        is_occupied,
-        light_status,
-      }])
+      .insert([
+        {
+          room_id,
+          temp,
+          humidity,
+          noise_level,
+          is_occupied,
+          light_status,
+        },
+      ])
       .select()
       .single();
 
@@ -64,9 +60,26 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({ success: true, data }, { status: 201 });
-  } catch (err: any) {
+    // Automatically evaluate IoT alert rules & auto-resolve cleared conditions
+    const triggeredAlerts = await evaluateRoomReading({
+      room_id,
+      temperature_c: temp != null ? Number(temp) : null,
+      humidity: humidity != null ? Number(humidity) : null,
+      noise_db: noise_level != null ? Number(noise_level) : null,
+      is_occupied: typeof is_occupied === "boolean" ? is_occupied : null,
+      light_status: typeof light_status === "boolean" ? light_status : null,
+      ghost_cooling_suspected: ghostCooling,
+    });
+
+    return NextResponse.json(
+      { success: true, data, alerts_triggered: triggeredAlerts.length },
+      { status: 201 }
+    );
+  } catch (err) {
     console.error("Error processing sensor reading:", err);
-    return NextResponse.json({ error: "Invalid sensor data payload" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid sensor data payload" },
+      { status: 400 }
+    );
   }
 }
